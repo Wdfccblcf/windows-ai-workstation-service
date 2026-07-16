@@ -13,6 +13,9 @@
 - audit.json
 - audit-report.md
 - audit.log
+- audit-progress.jsonl（19 项顺序检测的脱敏进度事件，供本地检测器或秒哒进度页读取）
+
+面向客户的检测专用发布包为 `public/downloads/windows-ai-detector-release-v1.0.2.zip`。它不包含修复引擎、软件安装、系统功能修改或管理员权限申请；私有修复工具不会进入公开构建。
 
 检查范围包括系统、硬件摘要、磁盘、PATH、Git、Python、uv、Node、npm、编辑器、WSL、Docker、AI CLI 与 MCP 状态。状态统一为 pass / warn / fail / blocked；退出码为 0=全部通过、1=存在待处理项、2=脚本执行失败。
 
