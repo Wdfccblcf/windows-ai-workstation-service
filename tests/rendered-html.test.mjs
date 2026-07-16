@@ -5,6 +5,33 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
+function parseChecksumManifest(contents, expectedNames) {
+  const lines = contents.split(/\r?\n/);
+  while (lines.at(-1) === "") {
+    lines.pop();
+  }
+
+  assert.ok(lines.length > 0, "checksum manifest must not be empty");
+
+  const entries = new Map();
+  for (const [index, line] of lines.entries()) {
+    assert.notEqual(line, "", `checksum manifest contains a blank line at ${index + 1}`);
+    const match = /^([a-f0-9]{64}) {2}(.+)$/.exec(line);
+    assert.ok(match, `invalid checksum line ${index + 1}: ${line}`);
+
+    const [, hash, name] = match;
+    assert.ok(!entries.has(name), `duplicate checksum entry: ${name}`);
+    entries.set(name, hash);
+  }
+
+  assert.deepEqual([...entries.keys()].sort(), [...expectedNames].sort());
+  return entries;
+}
+
+function sha256(contents) {
+  return createHash("sha256").update(contents).digest("hex");
+}
+
 test("exports the complete one-page service site", async () => {
   const html = await readFile(new URL("../out/index.html", import.meta.url), "utf8");
 
@@ -36,14 +63,45 @@ test("ships the promised public downloads", async () => {
 });
 
 test("publishes exact checksums for the audit script and detector", async () => {
-  const [audit, detector, sums] = await Promise.all([
+  const detectorName = "windows-ai-detector-release-v1.0.2.zip";
+  const [audit, detector, sums, detectorSum] = await Promise.all([
     readFile(new URL("../out/downloads/audit.ps1", import.meta.url)),
-    readFile(new URL("../out/downloads/windows-ai-detector-release-v1.0.2.zip", import.meta.url)),
+    readFile(new URL(`../out/downloads/${detectorName}`, import.meta.url)),
     readFile(new URL("../out/downloads/SHA256SUMS.txt", import.meta.url), "utf8"),
+    readFile(new URL(`../out/downloads/${detectorName}.sha256.txt`, import.meta.url), "utf8"),
   ]);
-  const auditHash = createHash("sha256").update(audit).digest("hex");
-  const detectorHash = createHash("sha256").update(detector).digest("hex");
-  assert.equal(sums.trim(), `${auditHash}  audit.ps1\n${detectorHash}  windows-ai-detector-release-v1.0.2.zip`);
+
+  const manifest = parseChecksumManifest(sums, ["audit.ps1", detectorName]);
+  const detectorManifest = parseChecksumManifest(detectorSum, [detectorName]);
+  const auditHash = sha256(audit);
+  const detectorHash = sha256(detector);
+
+  assert.equal(manifest.get("audit.ps1"), auditHash);
+  assert.equal(manifest.get(detectorName), detectorHash);
+  assert.equal(detectorManifest.get(detectorName), detectorHash);
+  assert.equal(detectorManifest.get(detectorName), manifest.get(detectorName));
+});
+
+test("parses checksum manifests across platforms and rejects unsafe entries", () => {
+  const auditHash = "a".repeat(64);
+  const detectorHash = "b".repeat(64);
+  const expected = ["audit.ps1", "detector.zip"];
+  const lf = `${auditHash}  audit.ps1\n${detectorHash}  detector.zip\n`;
+  const crlf = lf.replaceAll("\n", "\r\n");
+
+  assert.deepEqual(parseChecksumManifest(lf, expected), parseChecksumManifest(crlf, expected));
+  assert.throws(
+    () => parseChecksumManifest(`${lf}${auditHash}  audit.ps1\n`, expected),
+    /duplicate checksum entry/,
+  );
+  assert.throws(() => parseChecksumManifest(`${auditHash}  audit.ps1\n`, expected));
+  assert.throws(
+    () => parseChecksumManifest(`${lf}${auditHash}  unexpected.txt\n`, expected),
+  );
+  assert.throws(
+    () => parseChecksumManifest(`${auditHash} audit.ps1\n${detectorHash}  detector.zip\n`, expected),
+    /invalid checksum line/,
+  );
 });
 
 test("contains no obvious embedded credential", async () => {
