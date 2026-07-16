@@ -37,6 +37,7 @@ const packages = [
 ];
 
 const faqs = [
+  ["自动检测器会直接修我的电脑吗？", "不会。公开下载的是检测专用版，只完成 19 项只读检测，不包含安装、修复、管理员权限申请或系统修改。需要修复时必须另行在平台确认范围。"],
   ["会不会看到我的密码或 API Key？", "不会要求你发送密码、验证码或密钥。需要输入时由你本人操作；Strict 体检只记录“存在/不存在”，不记录变量值。"],
   ["是不是下单后什么报错都包修？", "不是。下单前先确认固定范围。网络封锁、第三方账号或额度、公司管控设备、Docker 深度数据损坏属于外部阻塞，报告会写明剩余步骤。"],
   ["远程时会操作我的私人文件吗？", "不会主动打开与本次安装无关的文件。客户全程在场；管理员授权、重启和系统功能变更都要单独确认。"],
@@ -77,7 +78,7 @@ export default function Home() {
             </p>
             <div className="hero-actions">
               <a className="button primary" href="#how-to-order">查看下单方式</a>
-              <a className="button secondary" href={basePath + "/downloads/audit.ps1"} download>下载只读体检脚本</a>
+              <a className="button secondary" href={basePath + "/downloads/windows-ai-detector-release-v1.0.2.zip"} download>免费下载自动检测器</a>
             </div>
             <ul className="trust-list" aria-label="服务承诺">
               <li><span>01</span> 不读取密钥内容</li>
@@ -98,7 +99,7 @@ export default function Home() {
               <code>已脱敏</code>
             </div>
             <div className="scan-ring">
-              <div className="scan-score"><strong>12</strong><span>项检查</span></div>
+              <div className="scan-score"><strong>19</strong><span>项检查</span></div>
             </div>
             <div className="check-list">
               <div><span><StatusDot />Git / Python / Node</span><b>PASS</b></div>
@@ -106,7 +107,7 @@ export default function Home() {
               <div><span><StatusDot tone="fail" />Docker 引擎</span><b>BLOCKED</b></div>
               <div><span><StatusDot />API Key</span><b>仅记录存在性</b></div>
             </div>
-            <p className="terminal-note">输出：audit.json · audit-report.md · audit.log</p>
+            <p className="terminal-note">输出：进度 · JSON · 报告 · 脱敏日志</p>
           </div>
         </div>
       </section>
@@ -156,10 +157,11 @@ export default function Home() {
       <section id="audit" className="section audit-section">
         <div className="audit-copy">
           <p className="kicker">公开、只读、可复核</p>
-          <h2>先让电脑自己把问题说清楚</h2>
-          <p>体检脚本采用 MIT 代码许可。Strict 模式不输出用户名、完整用户路径、设备序列号、账号名、令牌或环境变量值。</p>
+          <h2>先免费完成 19 项自动检测</h2>
+          <p>检测专用版不包含修复、安装或管理员权限申请。Strict 模式不输出用户名、完整用户路径、设备序列号、账号名、令牌或环境变量值。</p>
           <div className="audit-actions">
-            <a className="button primary" href={basePath + "/downloads/audit.ps1"} download>下载 audit.ps1</a>
+            <a className="button primary" href={basePath + "/downloads/windows-ai-detector-release-v1.0.2.zip"} download>下载 Windows 检测器 v1.0.2</a>
+            <a className="text-link" href={basePath + "/downloads/audit.ps1"} download>只下载 audit.ps1</a>
             <a className="text-link" href={basePath + "/downloads/service-guide.pdf"} download>下载服务 PDF</a>
             <a className="text-link" href={basePath + "/downloads/SHA256SUMS.txt"} download>核对 SHA256</a>
             <a className="text-link" href="https://github.com/Wdfccblcf/windows-ai-workstation-service" target="_blank" rel="noreferrer">在 GitHub 查看源码 ↗</a>
@@ -169,8 +171,8 @@ export default function Home() {
           <div className="code-title"><span>PowerShell 5.1+</span><b>STRICT</b></div>
           <pre><code><span>powershell.exe</span> -NoProfile {"\u0060\n"}  -ExecutionPolicy Bypass {"\u0060\n"}  -File .\audit.ps1 {"\u0060\n"}  -OutputPath .\audit-output {"\u0060\n"}  -PrivacyMode Strict</code></pre>
           <div className="code-output">
-            <span>生成 3 个文件</span>
-            <b>audit.json</b><b>audit-report.md</b><b>audit.log</b>
+            <span>生成 4 个文件</span>
+            <b>audit-progress.jsonl</b><b>audit.json</b><b>audit-report.md</b><b>audit.log</b>
           </div>
         </div>
       </section>
