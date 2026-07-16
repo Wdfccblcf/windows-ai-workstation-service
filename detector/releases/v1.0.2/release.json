@@ -1,0 +1,14 @@
+{
+    "schemaVersion":  "1.0",
+    "releaseType":  "detection-only",
+    "version":  "1.0.2",
+    "generatedAt":  "2026-07-16T19:58:24.0633716+08:00",
+    "supportedOS":  [
+                        "Windows 11"
+                    ],
+    "repairIncluded":  false,
+    "administratorPermissionRequested":  false,
+    "testSummarySha256":  "1e672f9a613f48943d0a9c989d45df76e4a9ac151e630143ba7d762955e8bd2f",
+    "testResult":  "18/18 passed",
+    "notice":  "只读检测版；不包含修复功能。"
+}

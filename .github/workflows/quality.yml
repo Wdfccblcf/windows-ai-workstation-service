@@ -36,3 +36,7 @@ jobs:
 
       - name: Build and test release assets
         run: npm test
+
+      - name: Verify detector release contract
+        if: runner.os == 'Windows'
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\detector-release.test.ps1
