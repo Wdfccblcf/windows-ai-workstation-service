@@ -9,12 +9,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ScriptVersion = "1.0.0"
+$ScriptVersion = "1.1.0"
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $Checks = New-Object System.Collections.Generic.List[object]
 $LogLines = New-Object System.Collections.Generic.List[string]
+$ExpectedCheckCount = 19
 $OutputRoot = $null
 $LogPath = $null
+$ProgressPath = $null
 
 function ConvertTo-SafeText {
     param([AllowNull()][object]$Value)
@@ -54,6 +56,36 @@ function Write-SafeLog {
     $LogLines.Add($line) | Out-Null
 }
 
+function Write-ProgressEvent {
+    param(
+        [ValidateSet("start", "check", "complete", "error")]
+        [string]$Event,
+        [AllowNull()][object]$Check,
+        [AllowEmptyString()][string]$OverallStatus = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ProgressPath)) { return }
+    try {
+        $sequence = $Checks.Count
+        $progress = [pscustomobject][ordered]@{
+            schemaVersion = "1.0"
+            event = $Event
+            timestamp = (Get-Date).ToString("o")
+            sequence = $sequence
+            total = $ExpectedCheckCount
+            percent = [Math]::Min(100, [Math]::Round(($sequence / [double]$ExpectedCheckCount) * 100))
+            id = $(if ($null -ne $Check) { [string]$Check.id } else { "" })
+            category = $(if ($null -ne $Check) { [string]$Check.category } else { "" })
+            label = $(if ($null -ne $Check) { [string]$Check.label } else { "" })
+            status = $(if ($null -ne $Check) { [string]$Check.status } else { $OverallStatus })
+        }
+        [IO.File]::AppendAllText($ProgressPath, (($progress | ConvertTo-Json -Compress) + [Environment]::NewLine), $Utf8NoBom)
+    }
+    catch {
+        Write-SafeLog "warn" "Progress event could not be written; audit continues."
+    }
+}
+
 function Add-Check {
     param(
         [string]$Id,
@@ -78,6 +110,7 @@ function Add-Check {
     }
     $Checks.Add($item) | Out-Null
     Write-SafeLog "info" ("{0}: {1} - {2}" -f $Id, $Status, $Message)
+    Write-ProgressEvent "check" $item
 }
 
 function Get-Executable {
@@ -241,8 +274,11 @@ try {
     $OutputRoot = [IO.Path]::GetFullPath($OutputPath)
     [IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
     $LogPath = Join-Path $OutputRoot "audit.log"
+    $ProgressPath = Join-Path $OutputRoot "audit-progress.jsonl"
+    [IO.File]::WriteAllText($ProgressPath, "", $Utf8NoBom)
 
     Write-SafeLog "info" ("Windows AI workstation audit {0} started in {1} mode." -f $ScriptVersion, $PrivacyMode)
+    Write-ProgressEvent "start" $null
 
     try {
         $os = Get-CimInstance Win32_OperatingSystem
@@ -489,6 +525,7 @@ try {
     $reportPath = Join-Path $OutputRoot "audit-report.md"
     [IO.File]::WriteAllText($reportPath, ($reportLines -join [Environment]::NewLine), $Utf8NoBom)
     Write-SafeLog "info" ("Audit completed with overall status {0}." -f $overallStatus)
+    Write-ProgressEvent "complete" $null $overallStatus
     [IO.File]::WriteAllText($LogPath, ($LogLines -join [Environment]::NewLine), $Utf8NoBom)
 
     if ($overallStatus -eq "pass") {
@@ -506,6 +543,7 @@ catch {
             $LogPath = Join-Path $OutputRoot "audit.log"
         }
         Write-SafeLog "error" ("Audit execution failed: {0}" -f $_.Exception.Message)
+        Write-ProgressEvent "error" $null "error"
         [IO.File]::WriteAllText($LogPath, ($LogLines -join [Environment]::NewLine), $Utf8NoBom)
     }
     catch {
