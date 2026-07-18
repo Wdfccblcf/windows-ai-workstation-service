@@ -131,3 +131,35 @@ test("enforces the CodeQL default setup and zero-open-alert contract", () => {
   assert.match(verifier, /IsNullOrWhiteSpace/);
   assert.doesNotMatch(verifier, /code-scanning[^\n]+(?:PATCH|dismiss|delete)/i);
 });
+
+test("enforces CodeQL merge protection without a bypass or write path", () => {
+  assert.match(verifier, /rulesets\?includes_parents=false&per_page=100/);
+  assert.match(verifier, /rulesets\/\{1\}/);
+
+  for (const target of [
+    "CodeQL merge protection",
+    "~DEFAULT_BRANCH",
+    "code_scanning",
+    "CodeQL",
+    "errors",
+    "high_or_higher",
+  ]) {
+    assert.ok(verifier.includes(`'${target}'`), `missing merge-protection target: ${target}`);
+  }
+
+  for (const checkName of [
+    "codeql-merge-ruleset-exactly-one",
+    "codeql-merge-ruleset-active",
+    "codeql-merge-ruleset-default-branch-only",
+    "codeql-merge-ruleset-bypass-empty",
+    "codeql-merge-rule-exactly-one",
+    "codeql-merge-tool-codeql",
+    "codeql-alert-threshold-errors",
+    "codeql-security-threshold-high-or-higher",
+  ]) {
+    assert.ok(verifier.includes(checkName), `missing merge-protection check: ${checkName}`);
+  }
+
+  assert.match(governance, /CodeQL merge protection/);
+  assert.doesNotMatch(verifier, /(?:--method|-X)\s+(?:POST|PATCH|DELETE)/i);
+});

@@ -202,6 +202,47 @@ $codeScanningAlertUri = 'repos/{0}/code-scanning/alerts?state=open&per_page=100'
 $codeScanningAlertCount = Get-GhPagedCount -Endpoint $codeScanningAlertUri -ApiName 'Code scanning alerts'
 Assert-Equal -Actual $codeScanningAlertCount -Expected 0 -Name 'code-scanning-open-alert-count-0'
 
+$rulesets = @(Invoke-GhJson -Endpoint ('repos/{0}/rulesets?includes_parents=false&per_page=100' -f $Repository))
+$codeqlMergeRulesets = @($rulesets | Where-Object { [string]$_.name -ceq 'CodeQL merge protection' })
+Assert-Equal -Actual $codeqlMergeRulesets.Count -Expected 1 -Name 'codeql-merge-ruleset-exactly-one'
+
+$codeqlMergeRulesetId = [long]$codeqlMergeRulesets[0].id
+$codeqlMergeRuleset = Invoke-GhJson -Endpoint ('repos/{0}/rulesets/{1}' -f $Repository, $codeqlMergeRulesetId)
+Assert-Equal -Actual ([string]$codeqlMergeRuleset.enforcement) -Expected 'active' -Name 'codeql-merge-ruleset-active'
+
+$actualIncludes = @($codeqlMergeRuleset.conditions.ref_name.include | ForEach-Object { [string]$_ })
+$actualExcludes = @($codeqlMergeRuleset.conditions.ref_name.exclude | ForEach-Object { [string]$_ })
+$includeDifference = @(Compare-Object -ReferenceObject @('~DEFAULT_BRANCH') -DifferenceObject $actualIncludes -CaseSensitive)
+$defaultBranchOnly = (
+    ([string]$codeqlMergeRuleset.target -ceq 'branch') -and
+    ($includeDifference.Count -eq 0) -and
+    ($actualExcludes.Count -eq 0)
+)
+Assert-Equal -Actual $defaultBranchOnly -Expected $true -Name 'codeql-merge-ruleset-default-branch-only'
+
+$bypassProperty = $codeqlMergeRuleset.PSObject.Properties['bypass_actors']
+$bypassCount = -1
+if ($null -ne $bypassProperty) {
+    $bypassCount = @($bypassProperty.Value).Count
+}
+Assert-Equal -Actual $bypassCount -Expected 0 -Name 'codeql-merge-ruleset-bypass-empty'
+
+$codeqlMergeRules = @($codeqlMergeRuleset.rules)
+$exactCodeScanningRule = (
+    ($codeqlMergeRules.Count -eq 1) -and
+    ([string]$codeqlMergeRules[0].type -ceq 'code_scanning')
+)
+Assert-Equal -Actual $exactCodeScanningRule -Expected $true -Name 'codeql-merge-rule-exactly-one'
+
+$codeScanningTools = @($codeqlMergeRules[0].parameters.code_scanning_tools)
+$exactCodeqlTool = (
+    ($codeScanningTools.Count -eq 1) -and
+    ([string]$codeScanningTools[0].tool -ceq 'CodeQL')
+)
+Assert-Equal -Actual $exactCodeqlTool -Expected $true -Name 'codeql-merge-tool-codeql'
+Assert-Equal -Actual ([string]$codeScanningTools[0].alerts_threshold) -Expected 'errors' -Name 'codeql-alert-threshold-errors'
+Assert-Equal -Actual ([string]$codeScanningTools[0].security_alerts_threshold) -Expected 'high_or_higher' -Name 'codeql-security-threshold-high-or-higher'
+
 $pages = Invoke-GhJson -Endpoint ('repos/{0}/pages' -f $Repository)
 Assert-Equal -Actual ([string]$pages.build_type) -Expected 'workflow' -Name 'pages-build-type-workflow'
 Assert-Equal -Actual ([bool]$pages.https_enforced) -Expected $true -Name 'pages-https-enforced'

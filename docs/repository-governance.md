@@ -39,7 +39,9 @@
 - query suite 为 `default`，threat model 为 `remote`，使用标准 GitHub runner；
 - default setup 在默认/受保护分支 push、面向这些分支的 Pull Request 和 GitHub 管理的周期计划上运行；
 - code scanning open alerts 必须为 0。新 alert 不得自动关闭或忽略，应脱敏记录规则、严重度和位置并建立独立 Issue；
-- 本轮不把猜测的 CodeQL check context 加入 required status checks。只有观察到稳定、精确的工具身份后，才能通过新的 Issue/Spec/Impl 评估合并门禁。
+- 不把猜测的 CodeQL check context 加入通用 required status checks；
+- 唯一 active repository ruleset `CodeQL merge protection` 只覆盖默认分支、没有 bypass actor，并以专用 `code_scanning` rule 要求 CodeQL 提供结果；
+- 普通 alert 达到 error 时阻断，security alert 达到 high 或更高时阻断。低于门禁阈值的 open alert 仍会让只读治理验证失败，不能静默忽略。
 
 ## 日常验证
 
@@ -56,7 +58,7 @@ npm run audit:dependencies
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify-repository-governance.ps1
 ```
 
-验证器只读，成功时打印 37 个 PASS 和检查总数。它验证 Dependabot 与 code scanning open alerts 都为 0，但不会打印告警正文、包名、漏洞标识符、secret scanning 告警或 API token。
+验证器只读，成功时打印 45 个 PASS 和检查总数。它验证 Dependabot 与 code scanning open alerts 都为 0，并精确验证 CodeQL merge ruleset，但不会打印告警正文、包名、漏洞标识符、secret scanning 告警或 API token。
 
 每次治理变更后还应确认：
 
@@ -75,7 +77,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify-repositor
 3. Spec 合并后再次从最新 `origin/main` 建立 Impl PR；
 4. 本地和全新 clone 验证后创建 Draft PR；
 5. PR 初次 CI 全绿后才修改实时设置；
-6. 记录设置前快照，按“私密报告 → Dependabot alerts → Actions allowlist → branch protection → CodeQL default setup”迁移；
+6. 记录设置前快照，按“私密报告 → Dependabot alerts → Actions allowlist → branch protection → CodeQL default setup → CodeQL merge ruleset”迁移；
 7. 运行只读验证器，并在新设置下复跑 PR workflows；
 8. 使用固定 head SHA 合并，不 bypass、不直接 push `main`；
 9. 回写 run、job、设置摘要、部署 SHA 和线上 smoke evidence。
@@ -83,6 +85,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify-repositor
 Dependabot 告警不会自动产生安全更新 PR。新告警应先建独立 Issue，再按同一流程分析与修复。
 
 CodeQL default setup 变更必须显式固定语言、query suite、threat model 和 runner。收到配置 API 的 `202 Accepted` 后仍需等待 validation/analysis 成功，并确认 alerts API 可读；`404 no analysis found` 不是零告警。
+
+CodeQL merge protection 必须使用专用 `code_scanning` ruleset、只覆盖 `~DEFAULT_BRANCH` 且没有 bypass。迁移后的 Impl PR 必须实际观察 CodeQL pending 时被阻止、成功后恢复可合并，不能只验证设置 JSON。
 
 ## 故障定位
 
@@ -92,6 +96,7 @@ CodeQL default setup 变更必须显式固定语言、query suite、threat model
 - CodeQL 配置为 `not-configured`：确认仓库公开、Actions enabled，并按 Spec 0026 的快照与回滚协议启用 default setup。
 - CodeQL alerts API 返回 `no analysis found`：等待或检查 default setup validation run；不能把 404 当作空数组。
 - CodeQL 产生 open alert：不要 dismiss 或降低 query suite；脱敏记录并建立独立 Issue 处理。
+- PR 在 CodeQL 完成后仍被 ruleset 阻止：核对工具名、目标 commit/reference 是否都有分析、ruleset scope 和两个阈值；不要临时添加 bypass。
 - 私密报告入口不可用：确认 private vulnerability reporting enabled，并使用仓库 Security 页面而非公开 Issue。
 - `npm audit` 失败：只记录脱敏摘要并建立独立 Issue；不要在 CI 中运行 `npm audit fix` 或 `--force`。
 
@@ -99,11 +104,12 @@ CodeQL default setup 变更必须显式固定语言、query suite、threat model
 
 实时设置迁移失败时按迁移前快照逆序回滚：
 
-1. 若本轮刚启用 CodeQL default setup，则恢复为 `not-configured` 并验证；
-2. 删除或恢复 `main` branch protection；
-3. 恢复 Actions permissions 与 selected Actions；
-4. 若本轮刚启用 Dependabot alerts，则禁用；
-5. 若本轮刚启用 private vulnerability reporting，则禁用；
-6. 重新运行只读验证和受影响 workflow。
+1. 若本轮刚创建 CodeQL merge ruleset，则按唯一 ID 删除并验证 active rules 恢复；
+2. 若本轮刚启用 CodeQL default setup，则恢复为 `not-configured` 并验证；
+3. 删除或恢复 `main` branch protection；
+4. 恢复 Actions permissions 与 selected Actions；
+5. 若本轮刚启用 Dependabot alerts，则禁用；
+6. 若本轮刚启用 private vulnerability reporting，则禁用；
+7. 重新运行只读验证和受影响 workflow。
 
 已合并的版本化实现如需撤销，必须新建 Issue、Spec PR 和 Impl revert PR。禁止强推、改写历史、删除运行/部署证据，且不得关闭 secret scanning、push protection、HTTPS 或 workflow 默认只读权限。
