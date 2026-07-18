@@ -1,0 +1,10 @@
+{
+  "blank_issues_enabled": false,
+  "contact_links": [
+    {
+      "name": "私密安全或行为举报",
+      "url": "https://github.com/Wdfccblcf/windows-ai-workstation-service/security/advisories/new",
+      "about": "漏洞、凭据泄露或敏感行为举报请使用私密入口，不要公开敏感信息。"
+    }
+  ]
+}

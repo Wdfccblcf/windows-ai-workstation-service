@@ -1,0 +1,91 @@
+{
+  "name": "优化建议",
+  "description": "提出有证据、可验收、可回滚的仓库优化",
+  "title": "[optimization] ",
+  "body": [
+    {
+      "type": "markdown",
+      "attributes": {
+        "value": "请勿公开 API Key、token、密码、客户数据、完整用户路径或未脱敏日志。敏感漏洞请使用私密报告入口。"
+      }
+    },
+    {
+      "type": "textarea",
+      "id": "baseline",
+      "attributes": {
+        "label": "当前基线与证据",
+        "description": "写明 origin/main SHA、当前行为、命令输出或可复核链接。",
+        "placeholder": "origin/main@<sha>；当前状态与证据……"
+      },
+      "validations": { "required": true }
+    },
+    {
+      "type": "textarea",
+      "id": "reason",
+      "attributes": {
+        "label": "为什么值得优化",
+        "description": "说明问题、预期收益、优先级与不处理的成本。"
+      },
+      "validations": { "required": true }
+    },
+    {
+      "type": "textarea",
+      "id": "scope",
+      "attributes": {
+        "label": "实现边界",
+        "description": "列出允许修改的文件、组件或实时设置。"
+      },
+      "validations": { "required": true }
+    },
+    {
+      "type": "textarea",
+      "id": "non_goals",
+      "attributes": {
+        "label": "明确非目标",
+        "description": "列出本轮不会处理的相邻事项，避免范围漂移。"
+      },
+      "validations": { "required": true }
+    },
+    {
+      "type": "textarea",
+      "id": "plan",
+      "attributes": {
+        "label": "计划",
+        "description": "按 Issue → Spec PR → Impl PR → evidence/close 写出有序步骤。",
+        "value": "1. 创建并合并纯规格 Spec PR。\n2. 从最新 origin/main 创建 Impl PR。\n3. 实现并验证。\n4. 回写证据并关闭 Issue。"
+      },
+      "validations": { "required": true }
+    },
+    {
+      "type": "textarea",
+      "id": "acceptance",
+      "attributes": {
+        "label": "验收标准",
+        "description": "使用可判定的 checklist。",
+        "value": "- [ ] 规格与实现边界满足。\n- [ ] 本地与远端验证通过。\n- [ ] 无安全、隐私、制品或治理回归。"
+      },
+      "validations": { "required": true }
+    },
+    {
+      "type": "textarea",
+      "id": "rollback",
+      "attributes": {
+        "label": "风险与回滚",
+        "description": "说明失败信号、停止条件、回滚顺序和验证。"
+      },
+      "validations": { "required": true }
+    },
+    {
+      "type": "checkboxes",
+      "id": "privacy",
+      "attributes": {
+        "label": "隐私与安全确认",
+        "options": [
+          { "label": "我没有提交真实凭据、客户数据、完整用户路径或其他可识别信息。", "required": true },
+          { "label": "若内容涉及漏洞或敏感行为，我会改用私密报告入口。", "required": true }
+        ]
+      },
+      "validations": { "required": true }
+    }
+  ]
+}
