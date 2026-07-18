@@ -32,22 +32,35 @@ function Assert-Equal {
 function Invoke-GhJson {
     param([Parameter(Mandatory = $true)][string]$Endpoint)
 
-    $raw = @(& gh api $Endpoint 2>$null)
-    if ($LASTEXITCODE -ne 0) {
-        throw ('GitHub API request failed: {0}' -f $Endpoint)
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $raw = @(& gh api $Endpoint 2>$null)
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+
+        if ($exitCode -eq 0) {
+            $joined = $raw -join [Environment]::NewLine
+            if (-not [string]::IsNullOrWhiteSpace($joined)) {
+                try {
+                    return ($joined | ConvertFrom-Json)
+                }
+                catch {
+                    # Retry without printing the response body.
+                }
+            }
+        }
+
+        if ($attempt -lt 3) {
+            Start-Sleep -Seconds 2
+        }
     }
 
-    $joined = $raw -join [Environment]::NewLine
-    if ([string]::IsNullOrWhiteSpace($joined)) {
-        throw ('GitHub API returned no JSON: {0}' -f $Endpoint)
-    }
-
-    try {
-        return ($joined | ConvertFrom-Json)
-    }
-    catch {
-        throw ('GitHub API returned invalid JSON: {0}' -f $Endpoint)
-    }
+    throw ('GitHub API request failed after retries: {0}' -f $Endpoint)
 }
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
@@ -107,8 +120,26 @@ $privateReporting = Invoke-GhJson -Endpoint ('repos/{0}/private-vulnerability-re
 Assert-Equal -Actual ([bool]$privateReporting.enabled) -Expected $true -Name 'private-vulnerability-reporting-enabled'
 
 $alertUri = 'repos/{0}/dependabot/alerts?state=open&per_page=100' -f $Repository
-$alertPageCounts = @(& gh api --paginate $alertUri --jq 'length' 2>$null)
-if ($LASTEXITCODE -ne 0) {
+$alertExitCode = 1
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $alertPageCounts = @(& gh api --paginate $alertUri --jq 'length' 2>$null)
+        $alertExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($alertExitCode -eq 0) {
+        break
+    }
+    if ($attempt -lt 3) {
+        Start-Sleep -Seconds 2
+    }
+}
+if ($alertExitCode -ne 0) {
     throw 'Dependabot alerts API is not readable.'
 }
 
