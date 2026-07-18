@@ -52,7 +52,7 @@ function StatusDot({ tone = "ok" }: { tone?: "ok" | "warn" | "fail" }) {
 
 export default function Home() {
   return (
-    <main>
+    <>
       <a className="skip-link" href="#main-content">跳到主要内容</a>
       <header className="site-header">
         <a className="brand" href="#top" aria-label="返回首页">
@@ -67,8 +67,9 @@ export default function Home() {
         </nav>
       </header>
 
+      <main id="main-content" className="site-main" tabIndex={-1}>
       <section id="top" className="hero">
-        <div className="hero-grid" id="main-content">
+        <div className="hero-grid">
           <div className="hero-copy">
             <p className="eyebrow"><span>Windows 11 专项</span> · 零基础也能跟上</p>
             <h1>AI 编程环境卡住了，<br /><em>先体检，再动手。</em></h1>
@@ -261,12 +262,13 @@ export default function Home() {
           <a className="button primary" href={basePath + "/downloads/client-intake.md"} download>先下载问诊表</a>
         </div>
       </section>
+      </main>
 
       <footer>
         <div className="footer-brand"><span className="brand-mark">W11</span><strong>AI 环境急诊台</strong></div>
         <p>首期仅支持 Windows 11 · 平台担保交易 · 客户全程在场</p>
         <p className="legal">体检脚本采用 MIT 许可；案例文字、页面设计与营销素材不在 MIT 授权范围内。第三方软件与许可证费用由客户承担。</p>
       </footer>
-    </main>
+    </>
   );
 }
