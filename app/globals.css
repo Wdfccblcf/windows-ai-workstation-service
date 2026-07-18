@@ -5,11 +5,11 @@
   --paper: #f3f0e8;
   --paper-2: #fffdf8;
   --mint: #67e8b7;
-  --mint-dark: #1c8b68;
+  --mint-dark: #177355;
   --amber: #ffc857;
   --coral: #ff765f;
   --blue: #72b7ff;
-  --muted: #637181;
+  --muted: #596874;
   --line: #d4d8d5;
   --shadow: 0 24px 70px rgba(7, 21, 32, 0.12);
 }
@@ -35,6 +35,11 @@ a {
   text-decoration: none;
 }
 
+a:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 4px;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
@@ -53,6 +58,11 @@ a {
 
 .skip-link:focus {
   transform: translateY(0);
+}
+
+.site-main:focus {
+  outline: 3px solid var(--amber);
+  outline-offset: -3px;
 }
 
 .site-header {
@@ -100,6 +110,12 @@ a {
   gap: 30px;
   font-size: 14px;
   color: #cbd7df;
+}
+
+.site-header nav a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
 }
 
 .site-header nav a:hover,
@@ -693,9 +709,15 @@ h1 em {
 }
 
 .text-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
   color: var(--mint-dark);
   font-size: 13px;
   font-weight: 900;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
 }
 
 .code-panel {
