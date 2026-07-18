@@ -62,6 +62,28 @@ test("ships the promised public downloads", async () => {
   ]);
 });
 
+test("prefixes public URLs for a configured Pages project path", async () => {
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
+  const html = await readFile(new URL("../out/index.html", import.meta.url), "utf8");
+  if (!basePath) {
+    assert.match(html, /href="\/downloads\/audit\.ps1"/);
+    assert.match(html, /href="\/favicon\.svg"/);
+    assert.match(html, /(?:src|href)="\/_next\//);
+    return;
+  }
+
+  assert.match(html, new RegExp(`href="${basePath}/downloads/audit\\.ps1"`));
+  assert.match(
+    html,
+    new RegExp(
+      `href="${basePath}/downloads/windows-ai-detector-release-v1\\.0\\.2\\.zip"`,
+    ),
+  );
+  assert.match(html, new RegExp(`href="${basePath}/favicon\\.svg"`));
+  assert.match(html, new RegExp(`(?:src|href)="${basePath}/_next/`));
+  assert.doesNotMatch(html, /(?:src|href)="\/(?:_next|downloads|favicon\.svg)/);
+});
+
 test("publishes exact checksums for the audit script and detector", async () => {
   const detectorName = "windows-ai-detector-release-v1.0.2.zip";
   const [audit, detector, sums, detectorSum] = await Promise.all([
