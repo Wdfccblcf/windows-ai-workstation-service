@@ -107,14 +107,22 @@ $privateReporting = Invoke-GhJson -Endpoint ('repos/{0}/private-vulnerability-re
 Assert-Equal -Actual ([bool]$privateReporting.enabled) -Expected $true -Name 'private-vulnerability-reporting-enabled'
 
 $alertUri = 'repos/{0}/dependabot/alerts?state=open&per_page=100' -f $Repository
-$alertCountRaw = @(& gh api --paginate --slurp $alertUri --jq 'add | length' 2>$null)
+$alertPageCounts = @(& gh api --paginate $alertUri --jq 'length' 2>$null)
 if ($LASTEXITCODE -ne 0) {
     throw 'Dependabot alerts API is not readable.'
 }
 
 $alertCount = 0
-if (-not [int]::TryParse(($alertCountRaw -join '').Trim(), [ref]$alertCount)) {
-    throw 'Dependabot alerts API did not return a count.'
+if ($alertPageCounts.Count -eq 0) {
+    throw 'Dependabot alerts API did not return page counts.'
+}
+
+foreach ($alertPageCount in $alertPageCounts) {
+    $pageCount = 0
+    if (-not [int]::TryParse(([string]$alertPageCount).Trim(), [ref]$pageCount)) {
+        throw 'Dependabot alerts API returned an invalid page count.'
+    }
+    $alertCount += $pageCount
 }
 Write-Pass -Name ('dependabot-open-alert-count-{0}' -f $alertCount)
 
