@@ -194,7 +194,8 @@ Assert-Equal -Actual ($codeqlLanguages -ccontains 'javascript-typescript') -Expe
 Assert-Equal -Actual ([string]$codeqlSetup.query_suite) -Expected 'default' -Name 'codeql-query-suite-default'
 Assert-Equal -Actual ([string]$codeqlSetup.threat_model) -Expected 'remote' -Name 'codeql-threat-model-remote'
 
-$standardRunner = (([string]$codeqlSetup.runner_type -ceq 'standard') -and ($null -eq $codeqlSetup.runner_label))
+$noCustomRunnerLabel = [string]::IsNullOrWhiteSpace([string]$codeqlSetup.runner_label)
+$standardRunner = (([string]$codeqlSetup.runner_type -ceq 'standard') -and $noCustomRunnerLabel)
 Assert-Equal -Actual $standardRunner -Expected $true -Name 'codeql-standard-runner'
 
 $codeScanningAlertUri = 'repos/{0}/code-scanning/alerts?state=open&per_page=100' -f $Repository

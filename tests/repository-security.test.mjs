@@ -128,5 +128,6 @@ test("enforces the CodeQL default setup and zero-open-alert contract", () => {
   }
 
   assert.match(verifier, /dependabot-open-alert-count-0/);
+  assert.match(verifier, /IsNullOrWhiteSpace/);
   assert.doesNotMatch(verifier, /code-scanning[^\n]+(?:PATCH|dismiss|delete)/i);
 });
