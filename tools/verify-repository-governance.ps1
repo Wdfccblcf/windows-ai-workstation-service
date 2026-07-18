@@ -63,6 +63,51 @@ function Invoke-GhJson {
     throw ('GitHub API request failed after retries: {0}' -f $Endpoint)
 }
 
+function Get-GhPagedCount {
+    param(
+        [Parameter(Mandatory = $true)][string]$Endpoint,
+        [Parameter(Mandatory = $true)][string]$ApiName
+    )
+
+    $exitCode = 1
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $pageCounts = @(& gh api --paginate $Endpoint --jq 'length' 2>$null)
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+
+        if ($exitCode -eq 0) {
+            break
+        }
+        if ($attempt -lt 3) {
+            Start-Sleep -Seconds 2
+        }
+    }
+
+    if ($exitCode -ne 0) {
+        throw ('{0} API is not readable.' -f $ApiName)
+    }
+    if ($pageCounts.Count -eq 0) {
+        throw ('{0} API did not return page counts.' -f $ApiName)
+    }
+
+    $total = 0
+    foreach ($pageCountText in $pageCounts) {
+        $pageCount = 0
+        if (-not [int]::TryParse(([string]$pageCountText).Trim(), [ref]$pageCount)) {
+            throw ('{0} API returned an invalid page count.' -f $ApiName)
+        }
+        $total += $pageCount
+    }
+
+    return $total
+}
+
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     throw 'GitHub CLI is required.'
 }
@@ -136,43 +181,25 @@ Assert-Equal -Actual $restrictionsDisabled -Expected $true -Name 'push-restricti
 $privateReporting = Invoke-GhJson -Endpoint ('repos/{0}/private-vulnerability-reporting' -f $Repository)
 Assert-Equal -Actual ([bool]$privateReporting.enabled) -Expected $true -Name 'private-vulnerability-reporting-enabled'
 
-$alertUri = 'repos/{0}/dependabot/alerts?state=open&per_page=100' -f $Repository
-$alertExitCode = 1
-for ($attempt = 1; $attempt -le 3; $attempt++) {
-    $previousErrorActionPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = 'Continue'
-        $alertPageCounts = @(& gh api --paginate $alertUri --jq 'length' 2>$null)
-        $alertExitCode = $LASTEXITCODE
-    }
-    finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-    }
+$dependabotAlertUri = 'repos/{0}/dependabot/alerts?state=open&per_page=100' -f $Repository
+$dependabotAlertCount = Get-GhPagedCount -Endpoint $dependabotAlertUri -ApiName 'Dependabot alerts'
+Assert-Equal -Actual $dependabotAlertCount -Expected 0 -Name 'dependabot-open-alert-count-0'
 
-    if ($alertExitCode -eq 0) {
-        break
-    }
-    if ($attempt -lt 3) {
-        Start-Sleep -Seconds 2
-    }
-}
-if ($alertExitCode -ne 0) {
-    throw 'Dependabot alerts API is not readable.'
-}
+$codeqlSetup = Invoke-GhJson -Endpoint ('repos/{0}/code-scanning/default-setup' -f $Repository)
+Assert-Equal -Actual ([string]$codeqlSetup.state) -Expected 'configured' -Name 'codeql-default-setup-configured'
 
-$alertCount = 0
-if ($alertPageCounts.Count -eq 0) {
-    throw 'Dependabot alerts API did not return page counts.'
-}
+$codeqlLanguages = @($codeqlSetup.languages | ForEach-Object { [string]$_ })
+Assert-Equal -Actual ($codeqlLanguages -ccontains 'actions') -Expected $true -Name 'codeql-actions-language-enabled'
+Assert-Equal -Actual ($codeqlLanguages -ccontains 'javascript-typescript') -Expected $true -Name 'codeql-javascript-typescript-language-enabled'
+Assert-Equal -Actual ([string]$codeqlSetup.query_suite) -Expected 'default' -Name 'codeql-query-suite-default'
+Assert-Equal -Actual ([string]$codeqlSetup.threat_model) -Expected 'remote' -Name 'codeql-threat-model-remote'
 
-foreach ($alertPageCount in $alertPageCounts) {
-    $pageCount = 0
-    if (-not [int]::TryParse(([string]$alertPageCount).Trim(), [ref]$pageCount)) {
-        throw 'Dependabot alerts API returned an invalid page count.'
-    }
-    $alertCount += $pageCount
-}
-Write-Pass -Name ('dependabot-open-alert-count-{0}' -f $alertCount)
+$standardRunner = (([string]$codeqlSetup.runner_type -ceq 'standard') -and ($null -eq $codeqlSetup.runner_label))
+Assert-Equal -Actual $standardRunner -Expected $true -Name 'codeql-standard-runner'
+
+$codeScanningAlertUri = 'repos/{0}/code-scanning/alerts?state=open&per_page=100' -f $Repository
+$codeScanningAlertCount = Get-GhPagedCount -Endpoint $codeScanningAlertUri -ApiName 'Code scanning alerts'
+Assert-Equal -Actual $codeScanningAlertCount -Expected 0 -Name 'code-scanning-open-alert-count-0'
 
 $pages = Invoke-GhJson -Endpoint ('repos/{0}/pages' -f $Repository)
 Assert-Equal -Actual ([string]$pages.build_type) -Expected 'workflow' -Name 'pages-build-type-workflow'
