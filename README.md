@@ -47,9 +47,18 @@ Windows Quality 还会在系统临时目录中真实运行一次 Standard 验收
 需要 Node.js 22.13 或更高版本：
 
     npm ci
+    npm run audit:dependencies
     npm run dev
     npm run check
     npm test
+
+`npm run audit:dependencies` 对当前 lockfile 执行只读依赖审计，high 或 critical 漏洞会以非零退出码阻止 Quality 与 Pages 构建；该命令不会自动修改依赖。
+
+仓库管理员可用已认证的 GitHub CLI 只读复核主分支保护、Actions 来源、Dependabot、私密漏洞报告和 Pages 设置。验证器只输出设置结论与 open Dependabot alert 数量，不输出漏洞正文：
+
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify-repository-governance.ps1
+
+完整目标配置、变更流程与回滚步骤见 `docs/repository-governance.md`。
 
 站点采用 Next.js 静态导出，由 `.github/workflows/pages.yml` 从 `main` 构建 `out/` artifact 并通过 GitHub Pages environment 发布。Pull Request 会验证相同的 artifact，但只有 `refs/heads/main` 能进入部署 job；构建默认只读，部署 job 单独使用 `pages: write` 与 `id-token: write`。
 
