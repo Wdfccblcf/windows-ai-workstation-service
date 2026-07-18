@@ -66,6 +66,9 @@ Assert-Equal -Actual ([string]$repositoryInfo.security_and_analysis.secret_scann
 Assert-Equal -Actual ([string]$repositoryInfo.security_and_analysis.secret_scanning_push_protection.status) -Expected 'enabled' -Name 'push-protection-enabled'
 Assert-Equal -Actual ([string]$repositoryInfo.security_and_analysis.dependabot_security_updates.status) -Expected 'disabled' -Name 'dependabot-security-updates-disabled'
 
+$automatedSecurityFixes = Invoke-GhJson -Endpoint ('repos/{0}/automated-security-fixes' -f $Repository)
+Assert-Equal -Actual ([bool]$automatedSecurityFixes.enabled) -Expected $false -Name 'automated-security-fixes-disabled'
+
 $actionPermissions = Invoke-GhJson -Endpoint ('repos/{0}/actions/permissions' -f $Repository)
 Assert-Equal -Actual ([bool]$actionPermissions.enabled) -Expected $true -Name 'actions-enabled'
 Assert-Equal -Actual ([string]$actionPermissions.allowed_actions) -Expected 'selected' -Name 'actions-selected'

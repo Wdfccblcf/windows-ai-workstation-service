@@ -4,12 +4,13 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-const [packageContents, quality, pages, security, governance] = await Promise.all([
+const [packageContents, quality, pages, security, governance, verifier] = await Promise.all([
   readFile(new URL("package.json", root), "utf8"),
   readFile(new URL(".github/workflows/quality.yml", root), "utf8"),
   readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
   readFile(new URL("SECURITY.md", root), "utf8"),
   readFile(new URL("docs/repository-governance.md", root), "utf8"),
+  readFile(new URL("tools/verify-repository-governance.ps1", root), "utf8"),
 ]);
 
 const packageJson = JSON.parse(packageContents);
@@ -86,4 +87,7 @@ test("documents a usable private disclosure channel and governance contract", ()
   ]) {
     assert.ok(governance.includes(boundary), `missing governance boundary: ${boundary}`);
   }
+
+  assert.match(verifier, /automated-security-fixes/);
+  assert.match(verifier, /automated-security-fixes-disabled/);
 });
