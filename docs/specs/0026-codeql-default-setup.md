@@ -30,7 +30,7 @@ CodeQL default setup 必须满足：
 | `query_suite` | `default` |
 | `threat_model` | `remote` |
 | `runner_type` | `standard` |
-| `runner_label` | `null` |
+| `runner_label` | `null` 或空字符串（均表示没有自定义 label） |
 
 选择默认配置而非 advanced setup 的原因：本仓库没有需要自定义构建的编译语言、私有 registry 或自定义 query pack；默认配置可自动维护语言检测和运行计划，减少 workflow 与 Actions 版本维护面。
 

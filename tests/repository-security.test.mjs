@@ -99,3 +99,35 @@ test("documents a usable private disclosure channel and governance contract", ()
   assert.match(verifier, /lock-branch-disabled/);
   assert.match(verifier, /push-restrictions-disabled/);
 });
+
+test("enforces the CodeQL default setup and zero-open-alert contract", () => {
+  assert.match(verifier, /code-scanning\/default-setup/);
+  assert.match(verifier, /code-scanning\/alerts\?state=open&per_page=100/);
+
+  for (const target of [
+    "configured",
+    "actions",
+    "javascript-typescript",
+    "default",
+    "remote",
+    "standard",
+  ]) {
+    assert.ok(verifier.includes(`'${target}'`), `missing CodeQL target: ${target}`);
+  }
+
+  for (const checkName of [
+    "codeql-default-setup-configured",
+    "codeql-actions-language-enabled",
+    "codeql-javascript-typescript-language-enabled",
+    "codeql-query-suite-default",
+    "codeql-threat-model-remote",
+    "codeql-standard-runner",
+    "code-scanning-open-alert-count-0",
+  ]) {
+    assert.ok(verifier.includes(checkName), `missing CodeQL check: ${checkName}`);
+  }
+
+  assert.match(verifier, /dependabot-open-alert-count-0/);
+  assert.match(verifier, /IsNullOrWhiteSpace/);
+  assert.doesNotMatch(verifier, /code-scanning[^\n]+(?:PATCH|dismiss|delete)/i);
+});

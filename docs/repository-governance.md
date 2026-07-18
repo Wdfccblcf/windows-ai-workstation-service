@@ -1,6 +1,6 @@
 # 仓库治理与安全门禁
 
-本文记录 `Wdfccblcf/windows-ai-workstation-service` 的实时 GitHub 设置目标、日常验证、变更纪律和回滚路径。规范来源为 [Spec 0020](./specs/0020-repository-governance.md)，对应 [Issue #20](https://github.com/Wdfccblcf/windows-ai-workstation-service/issues/20)。
+本文记录 `Wdfccblcf/windows-ai-workstation-service` 的实时 GitHub 设置目标、日常验证、变更纪律和回滚路径。基础治理来源为 [Spec 0020](./specs/0020-repository-governance.md)，CodeQL 扩展来源为 [Spec 0026](./specs/0026-codeql-default-setup.md)，对应 [Issue #20](https://github.com/Wdfccblcf/windows-ai-workstation-service/issues/20) 与 [Issue #26](https://github.com/Wdfccblcf/windows-ai-workstation-service/issues/26)。
 
 ## 目标状态
 
@@ -32,6 +32,15 @@
 - `npm run audit:dependencies` 在本地、Quality Linux job 和 Pages build 执行，high/critical 漏洞阻止合并或部署；
 - SECURITY.md 的私密入口为 `https://github.com/Wdfccblcf/windows-ai-workstation-service/security/advisories/new`。
 
+### CodeQL 代码扫描
+
+- CodeQL 使用 GitHub 托管的 default setup，不维护独立 advanced workflow；
+- 扫描语言固定包含 `actions` 与 `javascript-typescript`；
+- query suite 为 `default`，threat model 为 `remote`，使用标准 GitHub runner；
+- default setup 在默认/受保护分支 push、面向这些分支的 Pull Request 和 GitHub 管理的周期计划上运行；
+- code scanning open alerts 必须为 0。新 alert 不得自动关闭或忽略，应脱敏记录规则、严重度和位置并建立独立 Issue；
+- 本轮不把猜测的 CodeQL check context 加入 required status checks。只有观察到稳定、精确的工具身份后，才能通过新的 Issue/Spec/Impl 评估合并门禁。
+
 ## 日常验证
 
 验证依赖 lockfile：
@@ -47,7 +56,7 @@ npm run audit:dependencies
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify-repository-governance.ps1
 ```
 
-验证器只读，只打印 PASS、检查总数和 open Dependabot alert 数量。它不会打印告警正文、包名、漏洞标识符、secret scanning 告警或 API token。
+验证器只读，成功时打印 37 个 PASS 和检查总数。它验证 Dependabot 与 code scanning open alerts 都为 0，但不会打印告警正文、包名、漏洞标识符、secret scanning 告警或 API token。
 
 每次治理变更后还应确认：
 
@@ -66,18 +75,23 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify-repositor
 3. Spec 合并后再次从最新 `origin/main` 建立 Impl PR；
 4. 本地和全新 clone 验证后创建 Draft PR；
 5. PR 初次 CI 全绿后才修改实时设置；
-6. 记录设置前快照，按“私密报告 → Dependabot alerts → Actions allowlist → branch protection”迁移；
+6. 记录设置前快照，按“私密报告 → Dependabot alerts → Actions allowlist → branch protection → CodeQL default setup”迁移；
 7. 运行只读验证器，并在新设置下复跑 PR workflows；
 8. 使用固定 head SHA 合并，不 bypass、不直接 push `main`；
 9. 回写 run、job、设置摘要、部署 SHA 和线上 smoke evidence。
 
 Dependabot 告警不会自动产生安全更新 PR。新告警应先建独立 Issue，再按同一流程分析与修复。
 
+CodeQL default setup 变更必须显式固定语言、query suite、threat model 和 runner。收到配置 API 的 `202 Accepted` 后仍需等待 validation/analysis 成功，并确认 alerts API 可读；`404 no analysis found` 不是零告警。
+
 ## 故障定位
 
 - Required check 长期 pending：确认 context 与 job 显示名完全一致，并确认 workflow 会在 Pull Request 事件触发。
 - Action 被拒绝：确认 workflow 只引用 `actions/*`；不要临时开放所有 Actions，应通过新的规格评估来源。
 - Dependabot alerts API 不可读：确认 alerts 已启用且当前 `gh` 身份有仓库管理或安全读取权限。
+- CodeQL 配置为 `not-configured`：确认仓库公开、Actions enabled，并按 Spec 0026 的快照与回滚协议启用 default setup。
+- CodeQL alerts API 返回 `no analysis found`：等待或检查 default setup validation run；不能把 404 当作空数组。
+- CodeQL 产生 open alert：不要 dismiss 或降低 query suite；脱敏记录并建立独立 Issue 处理。
 - 私密报告入口不可用：确认 private vulnerability reporting enabled，并使用仓库 Security 页面而非公开 Issue。
 - `npm audit` 失败：只记录脱敏摘要并建立独立 Issue；不要在 CI 中运行 `npm audit fix` 或 `--force`。
 
@@ -85,10 +99,11 @@ Dependabot 告警不会自动产生安全更新 PR。新告警应先建独立 Is
 
 实时设置迁移失败时按迁移前快照逆序回滚：
 
-1. 删除或恢复 `main` branch protection；
-2. 恢复 Actions permissions 与 selected Actions；
-3. 若本轮刚启用 Dependabot alerts，则禁用；
-4. 若本轮刚启用 private vulnerability reporting，则禁用；
-5. 重新运行只读验证和受影响 workflow。
+1. 若本轮刚启用 CodeQL default setup，则恢复为 `not-configured` 并验证；
+2. 删除或恢复 `main` branch protection；
+3. 恢复 Actions permissions 与 selected Actions；
+4. 若本轮刚启用 Dependabot alerts，则禁用；
+5. 若本轮刚启用 private vulnerability reporting，则禁用；
+6. 重新运行只读验证和受影响 workflow。
 
 已合并的版本化实现如需撤销，必须新建 Issue、Spec PR 和 Impl revert PR。禁止强推、改写历史、删除运行/部署证据，且不得关闭 secret scanning、push protection、HTTPS 或 workflow 默认只读权限。
