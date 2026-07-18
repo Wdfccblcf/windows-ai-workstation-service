@@ -44,3 +44,7 @@ jobs:
       - name: Verify audit privacy contract
         if: runner.os == 'Windows'
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\audit-contract.test.ps1
+
+      - name: Verify acceptance output contract
+        if: runner.os == 'Windows'
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\acceptance-contract.test.ps1
