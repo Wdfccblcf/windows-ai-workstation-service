@@ -105,16 +105,33 @@ $expectedChecks = @(
     'Verify (windows-latest)'
 )
 $actualChecks = @($protection.required_status_checks.checks | ForEach-Object { [string]$_.context } | Sort-Object)
-$checkDifference = @(Compare-Object -ReferenceObject $expectedChecks -DifferenceObject $actualChecks)
+$checkDifference = @(Compare-Object -ReferenceObject $expectedChecks -DifferenceObject $actualChecks -CaseSensitive)
 Assert-Equal -Actual $checkDifference.Count -Expected 0 -Name 'required-check-contexts-exact'
 
 Assert-Equal -Actual ([bool]$protection.enforce_admins.enabled) -Expected $true -Name 'enforce-admins-enabled'
 Assert-Equal -Actual ([int]$protection.required_pull_request_reviews.required_approving_review_count) -Expected 0 -Name 'required-approvals-zero'
 Assert-Equal -Actual ([bool]$protection.required_pull_request_reviews.require_last_push_approval) -Expected $false -Name 'last-push-approval-disabled'
+
+$bypassCount = 0
+$bypassProperty = $protection.required_pull_request_reviews.PSObject.Properties['bypass_pull_request_allowances']
+if ($null -ne $bypassProperty -and $null -ne $bypassProperty.Value) {
+    foreach ($allowanceType in @('users', 'teams', 'apps')) {
+        $allowanceProperty = $bypassProperty.Value.PSObject.Properties[$allowanceType]
+        if ($null -ne $allowanceProperty) {
+            $bypassCount += @($allowanceProperty.Value).Count
+        }
+    }
+}
+Assert-Equal -Actual $bypassCount -Expected 0 -Name 'bypass-pull-request-allowances-empty'
+
 Assert-Equal -Actual ([bool]$protection.required_linear_history.enabled) -Expected $true -Name 'linear-history-enabled'
 Assert-Equal -Actual ([bool]$protection.required_conversation_resolution.enabled) -Expected $true -Name 'conversation-resolution-enabled'
 Assert-Equal -Actual ([bool]$protection.allow_force_pushes.enabled) -Expected $false -Name 'force-push-disabled'
 Assert-Equal -Actual ([bool]$protection.allow_deletions.enabled) -Expected $false -Name 'branch-deletion-disabled'
+Assert-Equal -Actual ([bool]$protection.lock_branch.enabled) -Expected $false -Name 'lock-branch-disabled'
+$restrictionsProperty = $protection.PSObject.Properties['restrictions']
+$restrictionsDisabled = ($null -eq $restrictionsProperty -or $null -eq $restrictionsProperty.Value)
+Assert-Equal -Actual $restrictionsDisabled -Expected $true -Name 'push-restrictions-disabled'
 
 $privateReporting = Invoke-GhJson -Endpoint ('repos/{0}/private-vulnerability-reporting' -f $Repository)
 Assert-Equal -Actual ([bool]$privateReporting.enabled) -Expected $true -Name 'private-vulnerability-reporting-enabled'

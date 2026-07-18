@@ -94,4 +94,8 @@ test("documents a usable private disclosure channel and governance contract", ()
   assert.doesNotMatch(verifier, /--slurp/);
   assert.match(verifier, /for \(\$attempt = 1; \$attempt -le 3; \$attempt\+\+\)/);
   assert.match(verifier, /Start-Sleep -Seconds 2/);
+  assert.match(verifier, /Compare-Object[^\n]+-CaseSensitive/);
+  assert.match(verifier, /bypass-pull-request-allowances-empty/);
+  assert.match(verifier, /lock-branch-disabled/);
+  assert.match(verifier, /push-restrictions-disabled/);
 });
