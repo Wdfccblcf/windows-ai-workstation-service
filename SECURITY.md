@@ -8,4 +8,4 @@
 - 已手工复核并脱敏的状态、检查项和退出码
 - 可复现步骤
 
-若 audit 输出意外包含敏感信息，请先删除公开内容并立即轮换相关凭证，再通过 GitHub 私密漏洞报告渠道联系仓库维护者。
+若 audit 输出意外包含敏感信息，请先删除公开内容并立即轮换相关凭证。安全漏洞请使用 [GitHub Security Advisories 私密报告入口](https://github.com/Wdfccblcf/windows-ai-workstation-service/security/advisories/new) 联系仓库维护者；不要在公开 Issue、Pull Request 或讨论中披露漏洞细节。

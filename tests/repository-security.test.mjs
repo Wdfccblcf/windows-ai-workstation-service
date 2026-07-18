@@ -1,0 +1,89 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const root = new URL("../", import.meta.url);
+
+const [packageContents, quality, pages, security, governance] = await Promise.all([
+  readFile(new URL("package.json", root), "utf8"),
+  readFile(new URL(".github/workflows/quality.yml", root), "utf8"),
+  readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
+  readFile(new URL("SECURITY.md", root), "utf8"),
+  readFile(new URL("docs/repository-governance.md", root), "utf8"),
+]);
+
+const packageJson = JSON.parse(packageContents);
+
+function actionOwners(workflow) {
+  return [...workflow.matchAll(/^\s*uses:\s+([^/\s]+)\/[^\s]+$/gm)]
+    .map((match) => match[1]);
+}
+
+test("pins the dependency audit command and fail threshold", () => {
+  assert.equal(
+    packageJson.scripts["audit:dependencies"],
+    "npm audit --audit-level=high",
+  );
+
+  for (const workflow of [quality, pages]) {
+    assert.doesNotMatch(workflow, /npm audit fix|--force/);
+  }
+});
+
+test("runs the audit once in Quality and on every Pages build", () => {
+  assert.match(
+    quality,
+    /- name: Audit production dependencies\n        if: runner\.os == 'Linux'\n        run: npm run audit:dependencies/,
+  );
+  assert.equal(
+    quality.match(/run: npm run audit:dependencies/g)?.length,
+    1,
+  );
+
+  assert.match(
+    pages,
+    /- name: Audit production dependencies\n        run: npm run audit:dependencies/,
+  );
+  assert.equal(
+    pages.match(/run: npm run audit:dependencies/g)?.length,
+    1,
+  );
+});
+
+test("keeps workflows read-only and GitHub-owned", () => {
+  for (const workflow of [quality, pages]) {
+    assert.match(workflow, /\npermissions:\n  contents: read\n/);
+    assert.doesNotMatch(workflow, /pull_request_target/);
+    assert.deepEqual(
+      [...new Set(actionOwners(workflow))],
+      ["actions"],
+      "every referenced Action must be owned by GitHub",
+    );
+  }
+});
+
+test("documents a usable private disclosure channel and governance contract", () => {
+  assert.match(
+    security,
+    /https:\/\/github\.com\/Wdfccblcf\/windows-ai-workstation-service\/security\/advisories\/new/,
+  );
+  assert.match(security, /不要在公开 Issue、Pull Request 或讨论中披露漏洞细节/);
+
+  for (const requiredCheck of [
+    "Verify (ubuntu-latest)",
+    "Verify (windows-latest)",
+    "Build Pages artifact",
+  ]) {
+    assert.ok(governance.includes(requiredCheck));
+  }
+
+  for (const boundary of [
+    "0 approvals",
+    "GitHub-owned",
+    "Dependabot alerts",
+    "private vulnerability reporting",
+    "逆序回滚",
+  ]) {
+    assert.ok(governance.includes(boundary), `missing governance boundary: ${boundary}`);
+  }
+});
