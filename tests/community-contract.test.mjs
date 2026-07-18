@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
-const privateReport = "https://github.com/Wdfccblcf/windows-ai-workstation-service/security/advisories/new";
-
+const privateReportPath =
+  "/Wdfccblcf/windows-ai-workstation-service/security/advisories/new";
 const paths = {
   contributing: "CONTRIBUTING.md",
   conduct: "CODE_OF_CONDUCT.md",
@@ -31,6 +31,15 @@ function formFields(form) {
       .filter((item) => item.id)
       .map((item) => [item.id, item]),
   );
+}
+
+function assertPrivateReport(value) {
+  const report = new URL(value);
+  assert.equal(report.protocol, "https:");
+  assert.equal(report.hostname, "github.com");
+  assert.equal(report.pathname, privateReportPath);
+  assert.equal(report.search, "");
+  assert.equal(report.hash, "");
 }
 
 function assertRequiredForm(form, expectedIds) {
@@ -80,7 +89,7 @@ test("ships strict optimization and bug issue forms", () => {
 test("disables blank issues and routes sensitive reports privately", () => {
   assert.equal(config.blank_issues_enabled, false);
   assert.equal(config.contact_links.length, 1);
-  assert.equal(config.contact_links[0].url, privateReport);
+  assertPrivateReport(config.contact_links[0].url);
   assert.match(config.contact_links[0].about, /不要公开敏感信息/);
 });
 
@@ -112,7 +121,16 @@ test("documents the full issue, spec, implementation, and evidence sequence", ()
 
 test("uses the recognized covenant with a private enforcement path", () => {
   assert.match(files.conduct, /^# Contributor Covenant Code of Conduct$/m);
-  assert.ok(files.conduct.includes(privateReport));
+
+  const inlineLinks = [...files.conduct.matchAll(/\]\((https:\/\/[^)\s]+)\)/g)].map(
+    ([, href]) => href,
+  );
+  const conductLink = inlineLinks.find((href) => {
+    const candidate = new URL(href);
+    return candidate.hostname === "github.com" && candidate.pathname === privateReportPath;
+  });
+  assert.ok(conductLink, "missing private Conduct report link");
+  assertPrivateReport(conductLink);
   assert.ok(files.conduct.includes("[Conduct]"));
   assert.ok(files.conduct.includes("version 2.0"));
   assert.doesNotMatch(files.conduct, /\[INSERT CONTACT METHOD\]/);
