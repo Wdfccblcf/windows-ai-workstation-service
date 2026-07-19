@@ -1,6 +1,6 @@
 # 仓库治理与安全门禁
 
-本文记录 `Wdfccblcf/windows-ai-workstation-service` 的实时 GitHub 设置目标、日常验证、变更纪律和回滚路径。基础治理来源为 [Spec 0020](./specs/0020-repository-governance.md)，CodeQL 扩展来源为 [Spec 0026](./specs/0026-codeql-default-setup.md)，对应 [Issue #20](https://github.com/Wdfccblcf/windows-ai-workstation-service/issues/20) 与 [Issue #26](https://github.com/Wdfccblcf/windows-ai-workstation-service/issues/26)。
+本文记录 `Wdfccblcf/windows-ai-workstation-service` 的实时 GitHub 设置目标、日常验证、变更纪律和回滚路径。基础治理来源为 [Spec 0020](./specs/0020-repository-governance.md)，CodeQL 扩展来源为 [Spec 0026](./specs/0026-codeql-default-setup.md)，检测器发布权限来源为 [Spec 0035](./specs/0035-detector-github-release.md)；对应 [Issue #20](https://github.com/Wdfccblcf/windows-ai-workstation-service/issues/20)、[Issue #26](https://github.com/Wdfccblcf/windows-ai-workstation-service/issues/26) 与 [Issue #35](https://github.com/Wdfccblcf/windows-ai-workstation-service/issues/35)。
 
 ## 目标状态
 
@@ -21,7 +21,17 @@
 - verified creators 和自定义 patterns 均不允许；
 - 不强制 SHA pinning，现有 workflow 只引用已审计的 `actions/*` major tags；
 - workflow 默认 token 为 read，不能审批 Pull Request；
-- workflow 根权限保持 `contents: read`，Pages deploy job 仅在必要边界获得 `pages: write` 与 `id-token: write`。
+- workflow 根权限保持 `contents: read`；Pages deploy job 仅在 `main` 发布边界获得 `pages: write` 与 `id-token: write`；检测器 publish job 仅在受校验的 `detector-v*` tag push 边界获得 `contents: write`、`id-token: write` 与 `attestations: write`。
+
+### 检测器 tag 发布
+
+- 检测器使用独立 `detector-v<semver>` 组件 tag，不与站点 npm package 版本联动；
+- manual `workflow_dispatch` 只能验证和 staging，publish job 必须 skipped；
+- tag publish 先通过现有检测器契约，再为 ZIP 与主 checksum manifest 生成和即时验证 artifact attestations；
+- GitHub Release 只上传版本规格定义的 5 个白名单资产；
+- workflow 只使用 `actions/*`，不使用 PAT、外部 secret、第三方 Action、付费证书或 `pull_request_target`；
+- tag 必须指向已全绿的 Impl merge SHA，发布后不得删除、移动、重指或替换同名资产；
+- 每个新检测器版本仍需独立 Issue → Spec PR → Impl PR，不允许自动发布未经规格审查的版本。
 
 ### 依赖与漏洞披露
 
@@ -68,6 +78,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\verify-repositor
 4. Pages deployment SHA 等于合并 SHA；
 5. 线上首页、`audit.ps1`、检测器 ZIP 和 checksum 返回成功，发布字节未意外改变。
 
+检测器发布变更还应确认 manual dry-run 不产生 tag/Release；正式 tag workflow 成功；Release 资产数量和 digest 精确；下载后的 ZIP 与 manifest 均能通过 `gh attestation verify`。
+
 ## 变更流程
 
 所有治理、依赖升级和安全配置变更均执行：
@@ -99,6 +111,9 @@ CodeQL merge protection 必须使用专用 `code_scanning` ruleset、只覆盖 `
 - PR 在 CodeQL 完成后仍被 ruleset 阻止：核对工具名、目标 commit/reference 是否都有分析、ruleset scope 和两个阈值；不要临时添加 bypass。
 - 私密报告入口不可用：确认 private vulnerability reporting enabled，并使用仓库 Security 页面而非公开 Issue。
 - `npm audit` 失败：只记录脱敏摘要并建立独立 Issue；不要在 CI 中运行 `npm audit fix` 或 `--force`。
+- detector dry-run 失败：停止创建 tag，修复后重新执行完整 PR 流程。
+- tag workflow 瞬时失败：只 rerun 同一 tag 与提交；不得 force push 或移动 tag。
+- Release 资产或 attestation 不完整：不要替换已发布资产；保留证据并使用新 Issue/Spec/Impl 和新版本前向修正。
 
 ## 逆序回滚
 
@@ -113,3 +128,5 @@ CodeQL merge protection 必须使用专用 `code_scanning` ruleset、只覆盖 `
 7. 重新运行只读验证和受影响 workflow。
 
 已合并的版本化实现如需撤销，必须新建 Issue、Spec PR 和 Impl revert PR。禁止强推、改写历史、删除运行/部署证据，且不得关闭 secret scanning、push protection、HTTPS 或 workflow 默认只读权限。
+
+检测器 tag 与 Release 采用 forward-only 策略，不属于可逆实时设置：已公开 tag、Release 和同名资产不得删除后重建。若发布 workflow 的权限边界异常，先停止创建任何新 tag，通过受保护 PR 恢复最小权限，再发布新的修正版本。

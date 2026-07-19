@@ -45,6 +45,10 @@ jobs:
         if: runner.os == 'Windows'
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\detector-release.test.ps1
 
+      - name: Verify detector publication contract
+        if: runner.os == 'Windows'
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\detector-release-publication.test.ps1
+
       - name: Verify audit privacy contract
         if: runner.os == 'Windows'
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\audit-contract.test.ps1
