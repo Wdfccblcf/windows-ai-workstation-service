@@ -4,10 +4,11 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-const [packageContents, quality, pages, security, governance, verifier] = await Promise.all([
+const [packageContents, quality, pages, detectorRelease, security, governance, verifier] = await Promise.all([
   readFile(new URL("package.json", root), "utf8"),
   readFile(new URL(".github/workflows/quality.yml", root), "utf8"),
   readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
+  readFile(new URL(".github/workflows/detector-release.yml", root), "utf8"),
   readFile(new URL("SECURITY.md", root), "utf8"),
   readFile(new URL("docs/repository-governance.md", root), "utf8"),
   readFile(new URL("tools/verify-repository-governance.ps1", root), "utf8"),
@@ -51,7 +52,7 @@ test("runs the audit once in Quality and on every Pages build", () => {
   );
 });
 
-test("keeps workflows read-only and GitHub-owned", () => {
+test("keeps general workflows read-only and release writes tag-gated", () => {
   for (const workflow of [quality, pages]) {
     assert.match(workflow, /\npermissions:\n  contents: read\n/);
     assert.doesNotMatch(workflow, /pull_request_target/);
@@ -61,6 +62,21 @@ test("keeps workflows read-only and GitHub-owned", () => {
       "every referenced Action must be owned by GitHub",
     );
   }
+
+  assert.match(detectorRelease, /\npermissions:\n  contents: read\n/);
+  assert.match(
+    detectorRelease,
+    /publish:\n    name: Attest and publish detector release[\s\S]*?if: github\.event_name == 'push' && startsWith\(github\.ref, 'refs\/tags\/detector-v'\)[\s\S]*?permissions:\n      contents: write\n      id-token: write\n      attestations: write\n/,
+  );
+  assert.equal(detectorRelease.match(/contents: write/g)?.length, 1);
+  assert.equal(detectorRelease.match(/id-token: write/g)?.length, 1);
+  assert.equal(detectorRelease.match(/attestations: write/g)?.length, 1);
+  assert.doesNotMatch(detectorRelease, /pull_request_target/);
+  assert.deepEqual(
+    [...new Set(actionOwners(detectorRelease))],
+    ["actions"],
+    "every release Action must be owned by GitHub",
+  );
 });
 
 test("documents a usable private disclosure channel and governance contract", () => {
@@ -84,6 +100,7 @@ test("documents a usable private disclosure channel and governance contract", ()
     "Dependabot alerts",
     "private vulnerability reporting",
     "逆序回滚",
+    "detector-v*",
   ]) {
     assert.ok(governance.includes(boundary), `missing governance boundary: ${boundary}`);
   }

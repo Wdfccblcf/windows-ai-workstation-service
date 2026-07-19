@@ -17,6 +17,13 @@
 
 面向客户的检测专用发布包为 `public/downloads/windows-ai-detector-release-v1.0.2.zip`。它不包含修复引擎、软件安装、系统功能修改或管理员权限申请；私有修复工具不会进入公开构建。
 
+正式版本使用独立组件 tag `detector-v<semver>` 和 [GitHub Releases](https://github.com/Wdfccblcf/windows-ai-workstation-service/releases)。下载后除核对 SHA-256 外，还可以验证资产是否由本仓库的受控 GitHub Actions workflow 发布：
+
+    gh attestation verify .\windows-ai-detector-release-v1.0.2.zip -R Wdfccblcf/windows-ai-workstation-service
+    gh attestation verify .\SHA256SUMS.txt -R Wdfccblcf/windows-ai-workstation-service
+
+完整的 Issue → Spec PR → Impl PR → dry-run → annotated tag → Release 流程、权限边界和失败处理见 [`docs/detector-release.md`](docs/detector-release.md)。Pages 下载继续保留，Release 不会重新打包或替换同版本字节。
+
 检查范围包括系统、硬件摘要、磁盘、PATH、Git、Python、uv、Node、npm、编辑器、WSL、Docker、AI CLI 与 MCP 状态。状态统一为 pass / warn / fail / blocked；退出码为 0=全部通过、1=存在待处理项、2=脚本执行失败。
 
 Strict 模式不会输出用户名、完整用户路径、设备序列号、账号名、令牌或环境变量值。API Key 只显示“存在/不存在”。脚本不执行联网下载、不修改系统配置、不创建 API Key。
@@ -85,6 +92,12 @@ Windows Quality 还会在系统临时目录中真实运行一次 Standard 验收
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\detector-release.test.ps1
 
 该验证不会重新打包或修改发布文件。历史 `release.json` 引用的 18/18 详细测试摘要没有留存在仓库或 ZIP 中，不能作为当前可复核证明；现有可验证边界详见 `detector/releases/v1.0.2/PROVENANCE.md`。
+
+候选 Release 还可以在仓库外的空 staging 目录中验证 tag、版本、资产白名单和复制前后哈希：
+
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\prepare-detector-release.ps1 -TagName detector-v1.0.2 -OutputDirectory $env:TEMP\detector-release-stage
+
+该脚本不联网、不创建 tag 或 Release，也不修改仓库文件。
 
 Windows 上还会真实运行根目录体检脚本，验证 Strict 脱敏、19 项顺序检查、21 条进度事件、汇总和退出码契约：
 

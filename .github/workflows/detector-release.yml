@@ -1,0 +1,143 @@
+name: Publish detector release
+
+on:
+  push:
+    tags:
+      - "detector-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Exact detector tag to validate without publishing"
+        required: true
+        default: "detector-v1.0.2"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "detector-release-${{ github.event_name }}-${{ github.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify detector release candidate
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      DETECTOR_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      RELEASE_STAGE: ${{ runner.temp }}\detector-release
+    outputs:
+      version: ${{ steps.candidate.outputs.version }}
+      title: ${{ steps.candidate.outputs.title }}
+      zip_name: ${{ steps.candidate.outputs.zip_name }}
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+
+      - name: Verify detector release contract
+        shell: powershell
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\detector-release.test.ps1
+
+      - name: Stage exact release assets
+        id: candidate
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\prepare-detector-release.ps1 -TagName $env:DETECTOR_TAG -OutputDirectory $env:RELEASE_STAGE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $version = $env:DETECTOR_TAG.Substring('detector-v'.Length)
+          $zipName = "windows-ai-detector-release-v$version.zip"
+          $lines = @(
+            "version=$version"
+            "title=Windows AI detector v$version"
+            "zip_name=$zipName"
+          )
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          [IO.File]::AppendAllText(
+            $env:GITHUB_OUTPUT,
+            (($lines -join [Environment]::NewLine) + [Environment]::NewLine),
+            $utf8NoBom
+          )
+
+      - name: Upload verified staging
+        uses: actions/upload-artifact@v4
+        with:
+          name: detector-release-${{ steps.candidate.outputs.version }}
+          path: ${{ env.RELEASE_STAGE }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  publish:
+    name: Attest and publish detector release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/detector-v')
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      DETECTOR_TAG: ${{ github.ref_name }}
+      RELEASE_TITLE: ${{ needs.verify.outputs.title }}
+      ZIP_NAME: ${{ needs.verify.outputs.zip_name }}
+
+    steps:
+      - name: Download verified staging
+        uses: actions/download-artifact@v5
+        with:
+          name: detector-release-${{ needs.verify.outputs.version }}
+          path: release-assets
+
+      - name: Verify staged file whitelist
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(printf '%s\n' \
+            PROVENANCE.md \
+            RELEASE_NOTES.md \
+            SHA256SUMS.txt \
+            release.json \
+            "$ZIP_NAME" \
+            "$ZIP_NAME.sha256.txt" | sort)"
+          actual="$(find release-assets -maxdepth 1 -type f -printf '%f\n' | sort)"
+          test "$actual" = "$expected"
+
+      - name: Attest detector ZIP
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/${{ env.ZIP_NAME }}
+
+      - name: Attest checksum manifest
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/SHA256SUMS.txt
+
+      - name: Verify generated attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh attestation verify "release-assets/$ZIP_NAME" --repo "$GITHUB_REPOSITORY"
+          gh attestation verify release-assets/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$DETECTOR_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "$RELEASE_TITLE" \
+            --notes-file release-assets/RELEASE_NOTES.md \
+            "release-assets/$ZIP_NAME" \
+            "release-assets/$ZIP_NAME.sha256.txt" \
+            release-assets/SHA256SUMS.txt \
+            release-assets/release.json \
+            release-assets/PROVENANCE.md
