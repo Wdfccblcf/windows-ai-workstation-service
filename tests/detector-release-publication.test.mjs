@@ -56,6 +56,32 @@ test("separates manual dry-run from tag-only publication", () => {
   assert.doesNotMatch(text.workflow, /\$\{\{\s*inputs\.tag\s*\}\}[^\n]*run:/);
 });
 
+test("resolves staging only after the Windows runner starts", () => {
+  const verifyStart = text.workflow.indexOf("  verify:");
+  const outputsStart = text.workflow.indexOf("    outputs:", verifyStart);
+  const verifyJobEnvironment = text.workflow.slice(verifyStart, outputsStart);
+
+  assert.doesNotMatch(verifyJobEnvironment, /runner\./);
+  assert.doesNotMatch(verifyJobEnvironment, /RELEASE_STAGE/);
+  assert.match(
+    text.workflow,
+    /if \(\[string\]::IsNullOrWhiteSpace\(\$env:RUNNER_TEMP\)\) \{\n            throw 'RUNNER_TEMP is unavailable\.'/,
+  );
+  assert.match(
+    text.workflow,
+    /\$releaseStage = Join-Path \$env:RUNNER_TEMP 'detector-release'/,
+  );
+  assert.match(
+    text.workflow,
+    /-OutputDirectory \$releaseStage/,
+  );
+  assert.match(text.workflow, /"release_stage=\$releaseStage"/);
+  assert.match(
+    text.workflow,
+    /path: \$\{\{ steps\.candidate\.outputs\.release_stage \}\}/,
+  );
+});
+
 test("keeps write permissions inside the gated publish job", () => {
   assert.match(text.workflow, /\npermissions:\n  contents: read\n/);
   assert.match(

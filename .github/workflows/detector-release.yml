@@ -26,7 +26,6 @@ jobs:
     timeout-minutes: 15
     env:
       DETECTOR_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-      RELEASE_STAGE: ${{ runner.temp }}\detector-release
     outputs:
       version: ${{ steps.candidate.outputs.version }}
       title: ${{ steps.candidate.outputs.title }}
@@ -44,7 +43,11 @@ jobs:
         id: candidate
         shell: powershell
         run: |
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\prepare-detector-release.ps1 -TagName $env:DETECTOR_TAG -OutputDirectory $env:RELEASE_STAGE
+          if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+            throw 'RUNNER_TEMP is unavailable.'
+          }
+          $releaseStage = Join-Path $env:RUNNER_TEMP 'detector-release'
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\prepare-detector-release.ps1 -TagName $env:DETECTOR_TAG -OutputDirectory $releaseStage
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $version = $env:DETECTOR_TAG.Substring('detector-v'.Length)
@@ -53,6 +56,7 @@ jobs:
             "version=$version"
             "title=Windows AI detector v$version"
             "zip_name=$zipName"
+            "release_stage=$releaseStage"
           )
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
           [IO.File]::AppendAllText(
@@ -65,7 +69,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: detector-release-${{ steps.candidate.outputs.version }}
-          path: ${{ env.RELEASE_STAGE }}
+          path: ${{ steps.candidate.outputs.release_stage }}
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
