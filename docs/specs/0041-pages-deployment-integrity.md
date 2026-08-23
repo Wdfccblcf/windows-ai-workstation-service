@@ -4,7 +4,7 @@
 
 - 跟踪 Issue：[#41](https://github.com/Wdfccblcf/windows-ai-workstation-service/issues/41)
 - 原始审查来源：[#12](https://github.com/Wdfccblcf/windows-ai-workstation-service/pull/12)
-- 规格基线：`origin/main@eade27e5f10be8131298e63fb0f626ac04a5ffe8`
+- 规格基线：`origin/main@cf98b2bcc589bc449dbd8f3739e55c4515088eda`（已包含 PR #47 的安全依赖修复）
 - 既有 Pages 规格：[`0011-pages-workflow-deployment.md`](./0011-pages-workflow-deployment.md)
 
 本规格只补强 GitHub Pages workflow 的并发排队、发布前 Windows 契约门禁，以及线上 smoke 覆盖面。它不改变公开页面内容、下载资产字节、站点 URL、Pages 环境名称或仓库权限模型。
@@ -13,15 +13,15 @@
 
 PR #12 的三条审查意见在历史 PR 合并后仍保持 unresolved，当前 `main` 也仍存在对应缺口：
 
-1. production concurrency 使用 `cancel-in-progress: false`，但没有显式声明无限排队；并发 push 的可追溯部署语义没有被代码化。
+1. production concurrency 使用 `cancel-in-progress: false`，但仍采用默认 `queue: single`；已有一个 pending 运行时，后续运行会替换它。扩大但有上限的排队语义尚未被代码化。
 2. 线上 smoke 覆盖主页、说明页与部分下载文件，但遗漏 `/downloads/client-intake.md`。
 3. deploy 只依赖 Ubuntu build，没有等待 Windows 上的发布契约测试；因此 Pages 可在 Windows 契约回归时继续部署。
 
-本规格将这三项作为一个原子发布完整性边界：每个 `main` push 都排队、部署前同时通过站点构建与 Windows 发布契约、部署后验证完整的公开下载集合。
+本规格将这三项作为一个原子发布完整性边界：进入 GitHub 有限 concurrency 队列的 production 运行不被后续运行替换、部署前同时通过站点构建与 Windows 发布契约、部署后验证完整的公开下载集合。
 
 ## 3. 决策
 
-### 3.1 production 使用保序排队
+### 3.1 production 使用扩大但有上限的串行队列
 
 顶层 `concurrency` 保留现有 PR 与 production 分组逻辑，并保持：
 
@@ -35,7 +35,7 @@ cancel-in-progress: false
 queue: max
 ```
 
-目标是让同一 production group 的每个 `main` push 都等待前序运行完成，而不是取消、替换或只保留最新一次运行。PR group 继续与 production 隔离。
+`queue: max` 将同一 concurrency group 的 pending 容量从默认 1 扩大到最多 100。处于该上限内并被 GitHub 接受的 production 运行不得因后续运行到来而被替换；超过上限的新运行会被拒绝或取消，因此本契约不宣称无限排队或“每个 push 必然部署”。同一 group 仍一次只执行一个运行。GitHub 根据各运行开始等待 concurrency group 的时间采用 FIFO；该时间可能与 workflow dispatch、commit 或 push 顺序不同，所以本契约也不声称按提交顺序执行。PR group 继续与 production 隔离。
 
 不采用 latest-wins，也不把 SHA 拼入 production group；后者会绕开串行化并允许多个生产部署并发执行。
 
@@ -131,8 +131,8 @@ deploy 仍只在非 PR 的 `main` push 上运行；PR 必须运行 build 与 rel
 - main push 的 build 与 release-contracts 都成功后，deploy 才开始；
 - deployment 成功且 environment URL 指向预期 Pages 站点；
 - online smoke 对 `/downloads/client-intake.md` 返回 2xx，并通过 base-path/正文检查；
-- 与前一生产运行重叠时，新运行处于 queued/pending，前一运行不被取消；
-- 两次运行最终按顺序完成，且各自保留独立可追溯的 deployment/run 记录；
+- 对两个均被 GitHub 接受且未达到 100 个 pending 上限的重叠 production 运行，后一个运行处于 queued/pending，前一个运行不被取消；
+- 前一个运行释放并发槽位后，后一个已接受运行继续执行；验证重点是未被替换和串行执行，不把 workflow dispatch、commit 或 push 顺序误写为 GitHub 保证；两个运行各自保留独立可追溯的 deployment/run 记录；
 - main Quality、Pages、CodeQL 均成功，open CodeQL alerts 为 0。
 
 ## 7. 合并顺序与审查线程
@@ -149,7 +149,7 @@ deploy 仍只在非 PR 的 `main` push 上运行；PR 必须运行 build 与 rel
 - build 失败：deploy 必须不运行；release-contracts 的成功不能绕过 build。
 - deploy 或 online smoke 失败：保留失败 deployment 证据，通过新的受保护 PR 前向修正。
 - concurrency 语法被 GitHub 拒绝：视为 workflow 加载失败，不能以跳过运行或移除测试代替修复。
-- 排队验证不能通过人为取消前序生产运行制造成功；必须观察两个独立 `main` run 的真实排队与完成顺序。
+- 排队验证不能通过人为取消前序 production 运行制造成功；必须观察两个已被 GitHub 接受的独立 `main` run，确认后一个真实进入 queued/pending、前一个未被取消、并发槽位释放后后一个继续执行。该验证不声称 dispatch、commit 或 push 顺序由 GitHub 保证。
 
 ## 9. 完成条件
 
